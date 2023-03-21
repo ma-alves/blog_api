@@ -43,23 +43,18 @@ def root():
     return {'message':'welcome to my api!!!'}
 
 
-@app.get('/sqlalchemy')
-def test_posts(db: Session = Depends(get_db)):
-    return {'status':'success'}
-
-
 @app.get('/posts')
-def get_posts():
-    cursor.execute('SELECT * FROM posts')
-    posts = cursor.fetchall()
+def get_posts(db: Session = Depends(get_db)):
+    posts = db.query(models.Post).all()
     return {'data': posts}
 
 
 @app.post('/posts', status_code=status.HTTP_201_CREATED)
-def create_posts(post: Post):
-    cursor.execute('INSERT INTO posts(title, content, published) VALUES (%s,%s,%s)', (post.title, post.content, post.published))
-    new_post = cursor.fetchone()
-    conn.commit()
+def create_posts(post: Post, db: Session = Depends(get_db)):
+    new_post = models.Post(**post.dict())
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post) # armazena novamente os dados commitados para que possam ser retonados no return
     return {'data':new_post}
 
 
