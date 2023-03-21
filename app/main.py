@@ -3,12 +3,18 @@
 # tanto o interpretador quanto o terminal devem ser configurados para os do venv
 # run: uvicorn app.main:app --reload
 
-from fastapi import FastAPI, status, HTTPException, Response
+from fastapi import FastAPI, status, HTTPException, Response, Depends
 from pydantic import BaseModel
 import mysql.connector
 from time import sleep
+from sqlalchemy.orm import Session
+from . import models
+from .database import engine, get_db
+
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
 
 class Post(BaseModel):
     # validation class
@@ -35,6 +41,11 @@ while True:
 @app.get('/')
 def root():
     return {'message':'welcome to my api!!!'}
+
+
+@app.get('/sqlalchemy')
+def test_posts(db: Session = Depends(get_db)):
+    return {'status':'success'}
 
 
 @app.get('/posts')
