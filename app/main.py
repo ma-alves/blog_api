@@ -4,23 +4,15 @@
 # run: uvicorn app.main:app --reload
 
 from fastapi import FastAPI, status, HTTPException, Response, Depends
-from pydantic import BaseModel
 import mysql.connector
 from time import sleep
 from sqlalchemy.orm import Session
-from . import models
+from . import models, schemas
 from .database import engine, get_db
 
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
-
-
-class Post(BaseModel):
-    # validation class
-    title: str
-    content: str
-    published: bool = True # optional field
 
 
 while True:
@@ -46,44 +38,47 @@ def root():
 @app.get('/posts')
 def get_posts(db: Session = Depends(get_db)):
     posts = db.query(models.Post).all()
-    return {'data': posts}
+    return posts
 
 
-@app.post('/posts', status_code=status.HTTP_201_CREATED)
-def create_posts(post: Post, db: Session = Depends(get_db)):
+@app.post('/posts', status_code=status.HTTP_201_CREATED, response_model=schemas.Post)
+def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db)):
     new_post = models.Post(**post.dict())
     db.add(new_post)
     db.commit()
     db.refresh(new_post) # armazena novamente os dados commitados para que possam ser retonados no return
-    return {'data':new_post}
+    return new_post
 
 
 @app.get('/posts/{id}')
-def get_posts_id(id: int):
-    cursor.execute('SELECT * FROM posts WHERE id = %s', (id,))
-    post = cursor.fetchone()
-    if not post:
+def get_posts_id(id: int, db: Session = Depends(get_db)):
+    one_post = db.query(models.Post).filter(models.Post.id == id).first()
+
+    if not one_post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'post with id {id} not found')
-    return {'data': post}
+    
+    return one_post
 
 
 @app.delete('/posts/{id}', status_code=status.HTTP_204_NO_CONTENT)
-def delete_posts(id: int):
-    cursor.execute('DELETE FROM posts WHERE id = %s', (id,))
-    deleted = cursor.fetchone()
-    conn.commit()
-    if deleted == None:
-        pass
-        #raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='index not found.')
+def delete_posts(id: int, db: Session = Depends(get_db)):
+    query_to_del = db.query(models.Post).filter(models.Post.id == id)
+
+    if query_to_del.first() == None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='index not found.')
+    
+    query_to_del.delete(synchronize_session=False)
+    db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @app.put('/posts/{id}')
-def update_posts(id: int, post: Post):
-    cursor.execute('UPDATE posts SET title = %s, content = %s, published = %s WHERE id = %s', (post.title, post.content, post.published, str(id)))
-    updated_post = cursor.fetchone()
-    conn.commit()
-    if updated_post == None:
-        pass
-        #raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='index not found.')
-    return {'updated_data': updated_post}
+def update_posts(id: int, post: schemas.PostCreate, db: Session = Depends(get_db)):
+    query_to_upd = db.query(models.Post).filter(models.Post.id == id)
+
+    if query_to_upd.first() == None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='index not found.')
+    
+    query_to_upd.update(post.dict(), synchronize_session=False)
+    db.commit()
+    return query_to_upd.first()
