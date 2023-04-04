@@ -3,6 +3,7 @@
 # tanto o interpretador quanto o terminal devem ser configurados para os do venv
 # run: uvicorn app.main:app --reload
 
+from typing import List
 from fastapi import FastAPI, status, HTTPException, Response, Depends
 import mysql.connector
 from time import sleep
@@ -35,7 +36,7 @@ def root():
     return {'message':'welcome to my api!!!'}
 
 
-@app.get('/posts')
+@app.get('/posts', response_model=List[schemas.Post])
 def get_posts(db: Session = Depends(get_db)):
     posts = db.query(models.Post).all()
     return posts
@@ -50,7 +51,7 @@ def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db)):
     return new_post
 
 
-@app.get('/posts/{id}')
+@app.get('/posts/{id}', response_model=schemas.Post)
 def get_posts_id(id: int, db: Session = Depends(get_db)):
     one_post = db.query(models.Post).filter(models.Post.id == id).first()
 
@@ -72,7 +73,7 @@ def delete_posts(id: int, db: Session = Depends(get_db)):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@app.put('/posts/{id}')
+@app.put('/posts/{id}', response_model=schemas.Post)
 def update_posts(id: int, post: schemas.PostCreate, db: Session = Depends(get_db)):
     query_to_upd = db.query(models.Post).filter(models.Post.id == id)
 
@@ -82,3 +83,13 @@ def update_posts(id: int, post: schemas.PostCreate, db: Session = Depends(get_db
     query_to_upd.update(post.dict(), synchronize_session=False)
     db.commit()
     return query_to_upd.first()
+
+
+@app.post('/users', status_code=status.HTTP_201_CREATED)
+def create_user(user: schemas.CreateUser, db: Session = Depends(get_db)):
+    new_user = models.User(**user.dict())
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return new_user
