@@ -8,7 +8,7 @@ from fastapi import FastAPI, status, HTTPException, Response, Depends
 import mysql.connector
 from time import sleep
 from sqlalchemy.orm import Session
-from . import models, schemas
+from . import models, schemas, utils
 from .database import engine, get_db
 
 models.Base.metadata.create_all(bind=engine)
@@ -85,8 +85,12 @@ def update_posts(id: int, post: schemas.PostCreate, db: Session = Depends(get_db
     return query_to_upd.first()
 
 
-@app.post('/users', status_code=status.HTTP_201_CREATED)
+@app.post('/users', status_code=status.HTTP_201_CREATED, response_model=schemas.UserOut)
 def create_user(user: schemas.CreateUser, db: Session = Depends(get_db)):
+
+    hashed_password = utils.hash(user.password)
+    user.password = hashed_password
+
     new_user = models.User(**user.dict())
     db.add(new_user)
     db.commit()
